@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 public class RNAppAuthModule extends ReactContextBaseJavaModule implements ActivityEventListener {
 
@@ -303,7 +304,7 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
                             } catch (ActivityNotFoundException e) {
                                 promise.reject("browser_not_found", e.getMessage());
                             } catch (Exception e) {
-                                promise.reject("authentication_failed", e.getMessage());
+                                promise.reject(e.getMessage(), "error_please_check_logs");
                             }
                         }
                     },
@@ -629,6 +630,13 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
         authService.performRegistrationRequest(registrationRequest, registrationResponseCallback);
     }
 
+    private String mapToString(Map<String, ?> map) {
+        String mapAsString = map.keySet().stream()
+                .map(key -> key + "=" + map.get(key))
+                .collect(Collectors.joining(", ", "{", "}"));
+        return mapAsString;
+    }
+
     /*
      * Authorize user with the provided configuration
      */
@@ -710,16 +718,20 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
 
         AuthorizationRequest authRequest = authRequestBuilder.build();
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            AuthorizationService authService = new AuthorizationService(context, appAuthConfiguration);
-            Intent authIntent = authService.getAuthorizationRequestIntent(authRequest);
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                AuthorizationService authService = new AuthorizationService(context, appAuthConfiguration);
+                Intent authIntent = authService.getAuthorizationRequestIntent(authRequest);
 
-            currentActivity.startActivityForResult(authIntent, 52);
-        } else {
-            AuthorizationService authService = new AuthorizationService(currentActivity, appAuthConfiguration);
-            PendingIntent pendingIntent = currentActivity.createPendingResult(52, new Intent(), 0);
+                currentActivity.startActivityForResult(authIntent, 52);
+            } else {
+                AuthorizationService authService = new AuthorizationService(currentActivity, appAuthConfiguration);
+                PendingIntent pendingIntent = currentActivity.createPendingResult(52, new Intent(), 0);
 
-            authService.performAuthorizationRequest(authRequest, pendingIntent);
+                authService.performAuthorizationRequest(authRequest, pendingIntent);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("map is " + mapToString(additionalParametersMap) + " and error is " + e.getMessage());
         }
     }
 
